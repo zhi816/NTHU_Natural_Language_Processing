@@ -1,0 +1,391 @@
+=== Page 1 ===
+Assignment 1: Word Analogy
+NTHU Natural Language Processing
+Hung-Yu Kao
+IKM Lab TAs
+
+=== Page 2 ===
+What is analogy?
+●
+Anthology helps to assess how well the word embedding model captures semantic 
+and syntactic relationships between words.
+2
+The analogy task is often summarized by the famous phrase:
+     A is to B as C is to D.  （e.g. King is to Queen as Man is to Woman.）
+In euqation: King + Queen - Man ≈ Woman
+
+=== Page 3 ===
+Dataset
+Google Word Analogy (Mikolov et al., 2013)
+●
+19,544 entries
+○
+5 sub-categories for semantic relationships
+○
+9 sub-categories for syntactic relationships
+●
+Each entry: four words, separated by a space. (e.g. A B C D)
+●
+Task: A is to B in the same sense that C is to ?
+○
+The forth word (D) in each entry is the answer.
+3
+
+=== Page 4 ===
+Dataset examples
+4
+Category
+Sub-category
+Example
+Semantic
+family
+king queen man woman
+Syntactic
+gram1-adjective-to-adverb
+infrequent infrequently cheerful cheerfully
+*Answer in red
+●
+Task: A is to B in the same sense that C is to ?
+
+=== Page 5 ===
+Code Template
+5
+
+=== Page 6 ===
+Coding environment
+6
+https://colab.research.google.com/
+
+=== Page 7 ===
+Brief Introduction to Colab
+●
+Cloud-Based Environment: Colab is entirely online, so no installation is 
+required. You can write and run Python code directly in your browser.
+●
+Free Access to Hardware: It provides access to GPUs and TPUs for free, 
+making it ideal for machine learning, data science, and AI tasks.
+●
+Easy to use: Colab uses Jupyter notebooks, a widely used format that 
+allows combining code, output, and markdown text in a single document.
+7
+
+=== Page 8 ===
+Quick view of the Colab editor
+8
+File region
+Code blocks (with outputs)
+Text block (You can write your notes with Markdown.)
+
+=== Page 9 ===
+Assignment 1 materials
+9
+GitHub: LINK
+
+=== Page 10 ===
+Download dataset
+10
+The downloaded data is a text ﬁle.
+
+=== Page 11 ===
+Check the downloaded ﬁle
+11
+Line-by-line manner
+●
+You can ﬁrst browse the 
+ﬁle on Colab!
+
+=== Page 12 ===
+Load data and check the ﬁrst ten entries
+12
+Sub-category
+
+=== Page 13 ===
+TODOs
+13
+#TODO1
+Convert the analogy data to pd.DataFrame (evaluation dataset) (5%)
+#TODO2
+Get predictions of the analogy task using pre-trained word embeddings (10%)
+#TODO3
+Plot t-SNE to see word relationships in the sub-category of `family` (5%)
+#TODO4
+Sample 20% Wikipedia articles (5%)
+#TODO5
+Train your own word embeddings with the sampled articles (10%)
+#TODO6
+Get predictions of the analogy task using your trained word embeddings (10%)
+#TODO7
+Plot t-SNE to see word relationships in the sub-category of `family` (10%)
+1.
+Use pre-trained word embeddings
+2.
+Train your own word embeddings
+
+=== Page 14 ===
+TODO1: Convert data to pd.DataFrame (5%)
+14
+
+=== Page 15 ===
+Gensim: A popular Python package for 
+embeddings
+15
+https://radimrehurek.com/gensim/index.html
+
+=== Page 16 ===
+Load the word embedding model with Gensim
+16
+You can also try other models!
+https://radimrehurek.com/gensim/models/word2vec.html#pretrained-models
+
+=== Page 17 ===
+TODO2: Get predictions of the analogy task using 
+pre-trained word embeddings  (10%)
+17
+
+=== Page 18 ===
+Do evaluations (We’ve ﬁnished for you to test!)
+18
+We will provide this ﬁle to 
+you. But you still need to 
+write code for #TODO1.
+
+=== Page 19 ===
+TODO3: Plot t-SNE to see word relationships in the sub-category of `family` (5%)
+19
+
+=== Page 20 ===
+t-SNE
+20
+
+=== Page 21 ===
+Train your own word embeddings
+21
+
+=== Page 22 ===
+22
+Training corpus: Wikipedia dump
+Currently 6M+ 
+articles for EN Wiki
+https://dumps.wikimedia.org/wikidatawiki/20240901/
+
+=== Page 23 ===
+23
+  <page>
+<title>Anarchism</title>
+<ns>0</ns>
+<id>12</id>
+<revision>
+  
+<id>1243078189</id>
+  
+<parentid>1243073506</parentid>
+  
+<timestamp>2024-08-30T11:06:56Z</timestamp>
+'''Anarchism''' is a [[political philosophy]] and [[Political movement|movement]] that is against all forms of 
+[[authority]] and seeks to abolish the [[institu
+tions]] it claims maintain unnecessary [[coercion]] and [[Social hierarchy|hierarchy]], typically including 
+the [[state (polity)|state]] and [[capitalism]]. An
+archism advocates for the replacement of the state with [[Stateless society|stateless societies]] and 
+[[Voluntary association|voluntary]] [[Free association (c
+ommunism and anarchism)|free associations]]. As a historically [[left-wing]] movement, this reading of 
+anarchism is placed on the [[Far-left politics|farthest
+left]] of the [[political spectrum]], usually described as the [[libertarian]] wing of the [[socialist 
+movement]] ([[libertarian socialism]]).
+An example of raw data of Wiki dump in XML
+
+=== Page 24 ===
+24
+Wiki corpus pre-processing with Gensim
+https://radimrehurek.com/gensim/corpora/wikicorpus.html
+
+=== Page 25 ===
+We’ve done Wiki data cleaning for you!
+25
+●
+Downloading the raw Wiki ﬁle takes time.
+●
+Cleaning the raw Wiki corpus takes even much longer time.
+Examples! There will be 11 ﬁles in total.
+If this is not available, you can also download through this LINK.
+
+=== Page 26 ===
+TODO4: Sample 20% Wikipedia articles  (5%)
+26
+
+=== Page 27 ===
+TODO5: Train your own word embeddings with the sampled articles (10%)
+27
+
+=== Page 28 ===
+Recommended data pre-processing steps
+●
+Remove non-English words
+●
+Remove stop words
+●
+Lemmatization (e.g., rocks -> rock)
+●
+Better tokenization than simply splitting words based on whitespaces
+●
+Retain the most frequent words for the dictionary
+*Note that not every tricks yield better performance. You should try on your own.
+28
+
+=== Page 29 ===
+TODO6: Get predictions of the analogy task using your trained word embeddings (10%)
+29
+Same as #TODO2, you still need to get predictions for your trained embeddings.
+
+=== Page 30 ===
+TODO7: Plot t-SNE to see word relationships in the sub-category of `family` (10%)
+30
+Same as #TODO3, you still need to plot t-SNE for your trained embeddings.
+
+=== Page 31 ===
+Scoring
+31
+Coding work : 55% (the seven TODOs, please follow our code template)
+The .ipynb ﬁle must include both your code and its execution outputs (20% version of wiki). If the execution results 
+are not included, no points can be awarded for any parts related to experimental results or plots.
+Report: 45% (please write it in your submitted .ipynb)
+●
+Which embedding model do you use? What are the pre-processing steps? What are the 
+hyperparameter settings? (5%)
+●
+What will the performance be like if you sample 5%, 10% and 20% of wiki text in TODO4? (10%, 
+3% for each)
+●
+What is the performance for different categories or sub-categories when trained on different 
+corpora (except wiki)? (15%) You should include your additional code in the notebook below the 
+report block; otherwise, you will receive 0 points.
+○
+Present your results. (5%)
+○
+Introduce the corpus you selected and explain what are the differences between the Wikipedia corpus and your 
+corpus. (including data size, topic difference, structural difference … ) (5%)
+○
+Explain why the performance increases or decreases. (5%)
+●
+Select at least ﬁve words and use their embeddings to retrieve the ﬁve most similar words for 
+each word you choose. What do you observe?  (10%)
+●
+… Anything that can strengthen your report.  (5%)
+●
+Generative AI Usage
+
+=== Page 32 ===
+Delivery policies: File formats
+32
+●
+Coding work: Python notebook 
+ﬁle (.ipynb)
+○
+Download your script via Colab.
+●
+Package list: requirements.txt
+○
+E.g., gensim==4.3.3
+●
+No other formats are allowed.
+●
+Zip the ﬁles above before 
+uploading you assignment.
+
+=== Page 33 ===
+Delivery policies: Filenames
+33
+Filename rule
+Filename example
+Coding work
+NLP_HW1_school_student_ID.ipynb
+NLP_HW1_NTHU_12345678.ipynb
+Package list
+requirements.txt
+Zipped file
+NLP_HW1_school_student_ID.zip
+NLP_HW1_NTHU_12345678.zip
+●
+You do not need to upload the code for your additional experiments; only the 
+training on the provided WikiText template is required.
+
+=== Page 34 ===
+Delivery policies: Things You should include
+●
+In your report:
+34
+Example
+Environment types
+If Colab or Kaggle
+If local
+Running environment
+Colab
+System: Ubuntu 22.04,
+CPU: Ryzen 7-7800X3D
+Python version
+Colab
+Python 3.10.1
+
+=== Page 35 ===
+Delivery policies: Rules of coding
+●
+If you use Generative AI, please specify your usage both in:
+○
+Code comments
+○
+Reports
+●
+No plagiarism. You should not copy and paste from your classmates. 
+●
+Please provide links if you take the code from the Internet as reference.
+●
+The following behaviors will cause loss in the score of the assignment: (1) Usage 
+with Generative AI without speciﬁcations (2) Internet sources without 
+speciﬁcations (3) Plagiarism.
+35
+
+=== Page 36 ===
+Punishments
+36
+Rule
+Name your code: 
+NLP_HW1_school_st
+udent_ID.ipynb (only 
+.ipynb is acceptable)
+Name your file: 
+NLP_HW1_school_stud
+ent_ID.zip
+Include 
+requirements.txt
+Do not have generative 
+AI usage in your report
+Punishment
+-5
+-5
+-5
+-10
+Rule
+Include python 
+version in your report
+Do not modify the code 
+template (only changes 
+to data loading are 
+allowed).
+Your code or report 
+should not shows a 
+high degree of 
+similarity to another 
+student’s submission.
+Punishment
+-5
+-5
+-100 for both
+If you are using Colab, go to File → Download → Download .py to obtain the Python ﬁle.
+
+=== Page 37 ===
+Uploading the zipped ﬁle
+●
+Please upload your ﬁle to NTU COOL.
+●
+You will have three weeks to ﬁnish this assignment.
+37
+
