@@ -2,13 +2,17 @@
 
 這份是起點：先用這裡的步驟跑出真正的數字，再照「手打清單」把核心程式弄懂。整份 notebook 不用全部重抄。
 
+> **v2 已經出來了**：v1 的 public score 是 0.776（第 64 名）。v2 改了證據檢索和分類器，怎麼跑、改了什麼、手打什麼，直接看最後的 **[八、v2](#八v2微調-reranker--roberta-large)**。
+
 ---
 
 ## 一、檔案地圖
 
 | 檔案 | 用途 | 要交嗎 |
 | :--- | :--- | :---: |
-| [st_minecode.ipynb](st_minecode.ipynb) | **正式作業**：程式 + 最下面的 Report。Kaggle、Colab 共用同一份 | ✅（改名後交） |
+| [st_minecode_v2.ipynb](st_minecode_v2.ipynb) | **v2 正式作業**：微調 reranker + RoBERTa-large，Report 多了 v1 / v2 對照 | ✅ 分數比 v1 高就交這份（改名後交） |
+| [st_minecode_study_v2.ipynb](st_minecode_study_v2.ipynb) | **v2 練功本**：只講 v2 新增的 10 個觀念，CPU 幾秒跑完 | ❌ 自己看 |
+| [st_minecode.ipynb](st_minecode.ipynb) | v1 正式作業：程式 + 最下面的 Report。Kaggle、Colab 共用同一份 | v2 比較差才交這份 |
 | [st_minecode_study.ipynb](st_minecode_study.ipynb) | **練功本**：10 個小積木，CPU 幾秒跑完，有 ✍️ 手打練習和自動對答案 | ❌ 自己看 |
 | [st_question.md](st_question.md) | 43 個「我大概會問的問題」，包含 Claude vs Gemini 建議的評估 | ❌ 自己看 |
 | [作業規範.md](作業規範.md)、[作業補充.md](作業補充.md) | 配分、規定、助教答疑 | ❌ |
@@ -75,7 +79,7 @@ claim ─► ① 文件檢索 ─────┤  claim 的每個子字串去查
 3. **執行階段 → 全部執行**，跳出 Drive 授權時同意。
 4. 輸出會存在 Drive 的 `nlp-hw3/output/`：`submission.csv`、`report_filled.md`、`metrics.json`、`retrieval_cache.json`、`classifier/`。
 5. 把 `submission.csv` 下載下來，到 Kaggle 競賽頁 **Submit Prediction** 上傳。
-6. **斷線救援**：如果是在訓練分類器時斷線，重跑第 1 節（到「讀取資料」為止），把「Colab 斷線救援」那格的 `LOAD_RETRIEVAL_CACHE` 改成 `True`，再從那格往下跑（見 [st_question Q38](st_question.md)）。
+6. **斷線救援**：如果是在訓練分類器時斷線，重跑第 1 節、「讀取資料」、第 2 節第一格（`gold_groups` 等工具函式）和「用 bge-m3 把文字變成向量」那格，再把「Colab 斷線救援」那格的 `LOAD_RETRIEVAL_CACHE` 改成 `True`，從那格往下跑（見 [st_question Q38](st_question.md)）。v2 把 `resolve_model` 移進第 2 節第一格了，所以 v2 只要重跑前 3 種。
 
 ### 大概要多久（T4 GPU，估計值）
 
@@ -167,3 +171,83 @@ claim ─► ① 文件檢索 ─────┤  claim 的每個子字串去查
 - [ ] Kaggle 截止（11/23 12:00）前，已經**自己選好最多 2 個 submission**。
 - [ ] 下載保留輸出的 notebook，改名成 **`NLP_HW3_NTOU_11457088.ipynb`**，壓成 **`NLP_HW3_NTOU_11457088.zip`**（學校、學號照 HW2，交之前再核對一次）。
 - [ ] 11/25（三）23:59 前上傳 NTU COOL。
+
+---
+
+## 八、v2：微調 reranker + RoBERTa-large
+
+v1 的 public score 是 **0.776**（第 64 名，第 59 名是 0.802）。FEVER score 要「證據找齊 + 標籤對」才拿分，所以 v2 **保留 v1 的文件檢索**，加強後面兩段：
+
+| | v1 | v2 | 為什麼 |
+| :--- | :--- | :--- | :--- |
+| 初篩句數 | 20 | 30 | reranker 能挑到的上限變高 |
+| reranker | 現成 | 用 train 的標準證據**微調 1 輪**（1 正例 + 7 個 hard negative，listwise loss）；dev 變差就自動改回現成的 | 現成模型沒學過 CFEVER 標註者挑哪一句 |
+| 分類器 | `chinese-roberta-wwm-ext`（102M） | `chinese-roberta-wwm-ext-large`（326M） | 推論能力較強，仍 < 1B |
+| 輸入 | 256 token、證據打亂 | 512 token、每句 ≤ 120 字、標準證據放前面 | v1 的標準證據可能被截掉（第 4 節會實際量出比例） |
+| NEI 訓練證據 | 向量前 5 句 | reranker 從前 10 句挑 5 句 | 和 test 一樣難 |
+| NEI 決策 | NEI bias | NEI bias ＋ reranker 門檻（一起在 dev 上挑） | 證據找不到時猜 S/R 也沒分 |
+| epoch | 用最後一個 | 留 dev FEVER 最好的 | 避免過擬合 |
+
+**作業規範**：3 個模型都 < 1B（568M / 568M / 326M，`count_parameters` 會檢查）；沒有外部 API；只用 CFEVER（train 訓練、dev 挑參數、test 只讀 claim）；Report 題目格式沒動。
+
+### 怎麼跑（建議 Kaggle）
+
+v2 在 T4 上大約要 **1.5～2 小時**，Colab 免費版容易中途斷線，所以建議用 Kaggle 的背景執行：
+
+1. Kaggle **Code → New Notebook → File → Import Notebook**，上傳 `st_minecode_v2.ipynb`。
+2. **Add Input** 加入競賽資料；**Settings**：Accelerator 選 **GPU T4 x2** 或 **P100**，**Internet 打開**。
+3. 先按一次最上面兩格，確認印出「環境：Kaggle」和 GPU 名稱。
+4. 右上角 **Save Version → Save & Run All (Commit) → Save**。它會在背景跑，關掉瀏覽器也沒關係（單次最多 12 小時，每週 GPU 30 小時）。
+5. 跑完後到這個 notebook 的頁面 → 該版本 → **Output**：下載 `submission.csv` 提交，`report_filled.md` 就是填好的報告。
+
+**Colab 也可以**：步驟和 v1 一樣，輸出會存在 Drive 的 `nlp-hw3/output_v2/`（不會蓋掉 v1）。如果 v1 的 `nlp-hw3/output/metrics.json` 還在，第 7 節會**自動讀進來做 v1 / v2 對照表**。斷線時：重跑第 1 節、「讀取資料」、第 2 節第一格，再把 `LOAD_RETRIEVAL_CACHE` 改成 `True`，從那格往下跑。
+
+| 步驟（T4，估計值） | 大約時間 |
+| :--- | :--- |
+| 下載 3 個模型（多了 1.3 GB 的 large） | 3～6 分鐘 |
+| 讀維基 + 標題比對 + bge-m3 編碼（同 v1） | 20～25 分鐘 |
+| 現成 reranker 重排 dev | 3～5 分鐘 |
+| 微調 reranker（8,000 題） | 15～25 分鐘 |
+| 重排 dev、test、train 的 NEI 題 | 10～15 分鐘 |
+| 訓練 large 分類器 2 epochs + 預測 | 30～40 分鐘 |
+| **合計** | **約 1.5～2 小時** |
+
+**出問題時**：
+
+- `CUDA out of memory` 在分類器：`BATCH_SIZE = 4`、`GRAD_ACCUM_STEPS = 4`（等效 batch 不變），還不夠就 `GRADIENT_CHECKPOINTING = True`。
+- `CUDA out of memory` 在微調 reranker：`RERANK_TRAIN_GROUPS = 2`。
+- 時間不夠：`FINETUNE_RERANKER = False`（省 20 分鐘，報告第 2 題 (3) 要自己刪掉），或 `EPOCHS = 1`。
+- dev Accuracy 卡在 40% 左右（large 偶爾學不起來）：`LEARNING_RATE = 5e-6` 或換 `SEED` 重跑。
+
+### v2 新增的格子
+
+| 節 | 格子 | 做什麼 | 手打？ |
+| :--- | :--- | :--- | :---: |
+| 3 | 向量初篩 30 句 | train 也取 30 句，給微調找 hard negative；用完釋放句子向量 | |
+| 3 | 現成 reranker | `load_reranker`（fp32 載入）、`rerank` 多回傳第 1 名分數 | |
+| 3 | 微調資料 | 每題 1 正例 + 7 個 hard negative（從初篩前 14 名、排除標準證據） | ✍️ |
+| 3 | `finetune_reranker` | 凍結詞向量、`view(題數, 8)` + cross entropy、fp16；dev 比較後選一個 | ✍️ |
+| 3 | 處理 test 與 train NEI | 選好的 reranker 重排 test；train 的 NEI 題從前 10 句挑 5 句 | |
+| 3 | `format_sentence` / `build_context` | 每句 ≤ 120 字；S/R 的標準證據放前面、不打亂 | ✍️ |
+| 4 | 截斷分析 | `gold_kept_ratio`：v1 設定 vs v2 設定，標準證據留下來的比例 | |
+| 4 | Training | gradient accumulation、保留 dev FEVER 最好的 epoch | ✍️ |
+| 5 | `decide_labels` | NEI bias × reranker 門檻的 grid search | ✍️ |
+| 7 | 報告 | 多了 v1 / v2 對照表、截斷分析、門檻表 | |
+
+### v2 手打清單（練功本 [st_minecode_study_v2.ipynb](st_minecode_study_v2.ipynb)）
+
+| 順序 | 練功本 | 打完應該能回答 |
+| :---: | :--- | :--- |
+| 1 | §2 `build_context` | 為什麼標準證據放前面比打亂好？`sentence[:120]` 在句子比較短時會怎樣？ |
+| 2 | §3 `make_group` | 什麼是 hard negative？為什麼一定要先排除標準證據？ |
+| 3 | §4 `listwise_loss` | `[題數 × 8, 1]` 怎麼變成 `[題數, 8]`？target 為什麼全是 0？ |
+| 4 | §5 `freeze_embeddings` | 凍結詞向量省了多少記憶體？為什麼不會讓 reranker 變笨？ |
+| 5 | §7 `accumulated_grad` | loss 為什麼要除以累積次數？什麼時候才 `step` 和 `zero_grad`？ |
+| 6 | §8 `pick_best` | 為什麼存權重要 `.clone()`？最後一個 epoch 為什麼不用另外存？ |
+| 7 | §9 `decide_labels` | 門檻為什麼用分位數？為什麼「找不到證據就判 NEI」不會讓 FEVER 變差？ |
+
+### 提交與繳交
+
+- v2 的 `submission.csv` 交上 Kaggle 後，把 public score 填進 v2 Report 的 `Your public leaderboard score:`。
+- 截止（11/23 12:00）前選最終 2 個 submission：建議 **v2 + v1**（或 v2 + 另一個 v2 的設定），一份分數最高、一份做保險。
+- NTU COOL 只交一份：**分數比較好的那一版**改名成 `NLP_HW3_NTOU_11457088.ipynb`。交 v2 的話，Report 裡已經有 v1 / v2 對照表，第 4 題會比較完整。

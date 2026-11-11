@@ -1,6 +1,6 @@
 # NLP HW3 學習問答筆記 (st_question.md)
 
-> 對應程式：[st_minecode.ipynb](st_minecode.ipynb)（正式作業）、[st_minecode_study.ipynb](st_minecode_study.ipynb)（練功本）。入口與執行步驟看 [index.md](index.md)。
+> 對應程式：[st_minecode.ipynb](st_minecode.ipynb)（v1 正式作業）、[st_minecode_study.ipynb](st_minecode_study.ipynb)（v1 練功本）、[st_minecode_v2.ipynb](st_minecode_v2.ipynb)（v2）、[st_minecode_study_v2.ipynb](st_minecode_study_v2.ipynb)（v2 練功本）。入口與執行步驟看 [index.md](index.md)。v2 的問題從 Q44 開始。
 > 這份是照我 HW2 的發問習慣，先把這次「大概會問的問題」整理好。下面的小例子都是示意，**不是實際跑出來的分數**。
 
 ---
@@ -421,7 +421,7 @@ sample code 直接拿檢索結果訓練，檢索錯時等於叫模型看著無�
 
 第 3 節最後會把檢索結果存成 `retrieval_cache.json`（存在 Drive 的 `nlp-hw3/output/`）。如果是在訓練分類器時斷線：
 
-1. 重新連線，執行第 1 節（到「讀取資料」那格為止）。
+1. 重新連線，執行第 1 節（到「讀取資料」那格為止），再執行第 2 節第一格（`gold_groups`、`recall_at` 這些工具函式）和「用 bge-m3 把文字變成向量」那格（裡面有 `resolve_model`）。v2 已經把 `resolve_model` 搬進第 2 節第一格，所以 v2 不用跑 bge-m3 那格。
 2. 找到「Colab 斷線救援」那一格，把 `LOAD_RETRIEVAL_CACHE = False` 改成 `True`。
 3. 從那一格往下執行，就不用重跑 30 分鐘的檢索。
 
@@ -481,3 +481,187 @@ EPOCHS = 1
 ### Q43. 如果我改了參數（例如 `DOCUMENT_TOP_K = 10`），報告會跟著變嗎？
 
 第 7 節印出的報告，數字和大部分設定（top-k、候選數、learning rate、epoch…）都是從變數讀的，會跟著變。少數寫死在文字裡的描述（例如「子字串長度 2～30」、模型名稱）如果你改了 `MIN_TITLE_LEN` / `MAX_TITLE_LEN` 或換了模型，要記得自己改。`USE_RERANKER = False` 時，Q2 的 (2) 那一點也要自己刪掉。
+
+---
+
+## 📅 2026-11-11：v1 拿到 0.776（第 64 名）之後 — v2
+
+### Q44. v1 是 0.776、排第 64，分數卡在哪？v2 為什麼選這幾個方向？
+
+FEVER score 是把每一題的得分加起來：
+
+```text
+SUPPORTS / REFUTES 題：① 前 5 頁有找到 → ② 前 5 句有找齊 → ③ 標籤也對      → 1 分
+NOT ENOUGH INFO 題：  標籤猜 NEI                                          → 1 分
+```
+
+所以失分只會來自 4 個地方：文件沒找到、句子沒找齊、證據對了但標籤錯、NEI 題被猜成 S/R。v1 第 5 節的**三階段漏斗表**會告訴你每一步掉了幾題。（老實說，我寫 v2 的時候還看不到 v1 實際的 dev 數字，所以 v2 是依照 CFEVER 常見的失分點來設計的。）
+
+- **文件檢索**：v1 用完整維基的標題比對，CFEVER 的 claim 大多會直接寫出主角名稱，所以這一段通常已經很高，v2 **不動它**，避免改壞。
+- **證據檢索**：v1 的 reranker 是現成的，沒看過 CFEVER → v2 用 train 微調它（Q46）。
+- **分類**：v1 是 base 模型，而且輸入可能把證據截掉 → v2 換 large、放寬長度（Q50、Q51）。
+- **NEI**：v1 只有 NEI bias → v2 多一個 reranker 門檻（Q54）。
+
+v2 第 7 節會自動做 v1 / v2 對照表（只要讀得到 v1 的 `metrics.json`），哪一段進步最多一看就知道，也可以直接寫進報告第 4 題。
+
+---
+
+### Q45. v2 還符合作業規範嗎？
+
+逐條對照 [作業規範.md](作業規範.md)：
+
+| 規定 | v2 的做法 |
+| :--- | :--- |
+| 每個模型 < 1B | bge-m3 568M、bge-reranker-v2-m3 568M、chinese-roberta-wwm-ext-large 326M；`count_parameters` 會 assert |
+| 禁止外部推理 API | 全部在 Kaggle / Colab 的 GPU 上跑，只有從 Hugging Face **下載權重**（規範寫明不算 API） |
+| 只用 CFEVER dataset | reranker 和分類器都只用 CFEVER **train** 訓練；dev 只用來挑參數、選 epoch、選 reranker；test 只讀 `id`、`claim` |
+| 預訓練 checkpoint | 11/06 答疑允許、11/11 沒有撤回（規範第三節）；三個都是公開的預訓練模型，來源連結寫在程式最上方 |
+| Report 格式不能改 | 題目文字一字未動，只在 `Answer:` 後面作答 |
+| AI 使用要註明 | 程式最上方註解 + Report 第 5 題都有寫 v2 的部分 |
+
+我刻意**沒有用**「已經在其他 NLI 資料集上微調過的分類模型」（例如 Erlangshen-NLI 系列）。它們是用別的標註資料集訓練的，和 11/11「只能用 CFEVER」的答覆比較衝突，所以分類器選的是只做過語言模型預訓練的 `chinese-roberta-wwm-ext-large`。
+
+---
+
+### Q46. 微調 reranker 到底在做什麼？為什麼是 1 個正例 + 7 個負例？
+
+現成的 bge-reranker 學的是一般的「這句和問題相不相關」。CFEVER 要的是「**能拿來判斷真假的那一句**」，而且標註者挑哪一句有自己的標準。用 train 的標準證據教它，它就會往 CFEVER 的標準靠。
+
+一題組成一份 8 選 1 的「考卷」：
+
+```text
+claim：周杰倫在 2003 年發行葉惠美
+  第 0 句（正例）：葉惠美：葉惠美是周杰倫在 2003 年發行的專輯     ← 標準證據
+  第 1～7 句（負例）：周杰倫：周杰倫是臺灣歌手 …                 ← 很像但不是
+```
+
+reranker 對 8 句各打一個分數，把 8 個分數當 logit 做 cross entropy，答案永遠是第 0 個。這叫 **listwise loss**，比「每句單獨判斷是不是證據」更直接：我們在乎的只是**排名**（標準證據要排第 1），不在乎分數的絕對值。7 是一個常見的設定，負例越多越難、但記憶體也越多。
+
+---
+
+### Q47. 什麼是 hard negative？會不會把「其實也是證據、只是沒被標」的句子當成負例？
+
+hard negative = **看起來很像答案、其實不是**的句子。v2 從 bge-m3 初篩的前 14 名（已排除所有標準證據句）裡隨機抽 7 句。如果隨便抽「富士山是日本最高的山」當負例，模型一看就知道不相關，學不到東西；同一頁、同一主題的句子才會逼它學會細微的差別。
+
+會不會抽到「其實也能當證據」的句子？會，這叫 **false negative**，是所有檢索訓練都會遇到的雜訊。影響通常不大：一來它只佔一小部分；二來 listwise loss 只要求標準證據**比較高**，不會把那句的分數壓到很低。也因為有這種風險，v2 會在 dev 上比較微調前後，變差就不用（Q49）。
+
+---
+
+### Q48. 為什麼要凍結詞向量層？這樣 reranker 會不會變笨？
+
+XLM-R 的詞表有 25 萬個詞，詞向量層就佔了約 2.5 億參數（整個模型的 4 成多）。訓練時每個參數要存權重、梯度和 Adam 的 2 個狀態，大約 16 bytes：
+
+- 不凍結：568M × 16 ≈ 8.5 GB，加上 activation，T4 的 16 GB 很吃緊。
+- 凍結後：可訓練的約 3.1 億 × 16 ≈ 4.6 GB，放得下。
+
+不會變笨：詞向量代表「每個字詞是什麼意思」，這在預訓練時已經學好了；我們要教的是「怎麼比對 claim 和句子」，那是後面 24 層 transformer 的工作。練功本 §5 可以自己算一次參數量。
+
+---
+
+### Q49. 微調完反而變差怎麼辦？
+
+程式會自動處理：微調前先用**現成的** reranker 在 dev 上算 Evidence Recall@5（`zs_recall`），微調後再算一次（`ft_recall`）：
+
+- `ft_recall >= zs_recall` → 用微調後的。
+- 否則 → `load_reranker()` 重新載入現成的，test 用現成的。
+
+dev 沒有拿來訓練 reranker，所以這個比較是公平的。最差的情況就是和 v1 一樣用現成的 reranker（多了 30 句初篩），不會更糟。報告第 2 題會自動寫最後用的是哪一個。
+
+---
+
+### Q50. 為什麼分類器要換 large？會不會太慢、太佔記憶體？
+
+`chinese-roberta-wwm-ext-large` 和 v1 用的 base 是同一系列，層數 12 → 24、hidden 768 → 1024、參數 102M → 326M，在中文推論任務上通常比 base 高 1～3 個百分點，而且仍遠小於 1B。
+
+代價是訓練大約慢 3 倍，再加上長度 256 → 512，所以 v2 的分類器大約要 30～40 分鐘（T4）。記憶體方面：
+
+- 一次放 8 筆，用 gradient accumulation 累積 2 批才更新（Q52），等效 batch size 還是 16。
+- 還是 `CUDA out of memory` 的話：`BATCH_SIZE = 4`、`GRAD_ACCUM_STEPS = 4`，或打開 `GRADIENT_CHECKPOINTING = True`。
+- large 的學習率用 `1e-5`（base 是 `2e-5`）。large 模型偶爾會「學不起來」（dev Accuracy 卡在 40% 左右、一直猜同一類），程式會印警告，這時把學習率降到 `5e-6` 或換 `SEED` 重跑。
+
+---
+
+### Q51. v1 的「證據被截掉」是怎麼回事？把標準證據放最前面，模型會不會偷懶只看第 1 句？
+
+v1 的輸入是 `claim + 5 句證據`，上限 256 token。中文 BERT 大約一個字一個 token，5 句維基句子加上頁名很容易超過 256，**超過的部分直接丟掉**。v1 訓練時又把 5 句打亂，標準證據有機會排到第 4、5 句，剛好被丟掉；這時模型看不到證據，卻被要求回答 SUPPORTS / REFUTES，學到的就是雜訊。
+
+v2 第 4 節會用 tokenizer **實際量**「v1 設定下有多少比例的標準證據被截掉」，這個數字可以直接寫進報告第 4 題。
+
+v2 的三個修正：上限 512、每句最多 120 字、標準證據放前面。會不會讓模型只看第 1 句？
+
+- 測試時 reranker 也把最像證據的句子排第 1，所以「訓練時看到的樣子」和「測試時看到的樣子」一致，這正是我們要的。
+- 需要 2 句的題目，2 句標準證據都會放在最前面。
+- NEI 題的第 1 句也是很相關的句子（reranker 挑的），模型沒辦法靠「第 1 句長得像不像」來作弊，還是要真的讀懂它能不能判斷真假。
+
+---
+
+### Q52. gradient accumulation 和直接 batch 16 一樣嗎？
+
+梯度**完全一樣**（練功本 §7 會用程式驗證）。PyTorch 的梯度是累加的：兩批各自 `backward()`，`.grad` 就是兩批的梯度相加。每批的 loss 先除以 2，相加後就等於 16 筆的平均。差別只在：
+
+- 比較慢一點（同樣的資料分兩次跑）。
+- 學習率排程要用「更新次數」來算：`updates_per_epoch = ceil(批數 / 2)`，不是批數。
+- BatchNorm 類的層會不一樣，但 BERT 用的是 LayerNorm，不受影響。
+
+---
+
+### Q53. 保留 dev 最好的 epoch，為什麼存權重要 `.clone()`？這樣用 dev 算不算作弊？
+
+`model.state_dict()` 回傳的 tensor 和模型**共用記憶體**。如果只寫 `best = model.state_dict()`，模型繼續訓練，`best` 也會跟著變，最後存到的其實是最後一個 epoch。所以要 `.detach().cpu().clone()` 複製一份到 RAM（練功本 §8 有示範）。最後一個 epoch 就是現在的權重，不用另外存，省 1.3 GB。
+
+用 dev 選 epoch 和用 dev 挑 bonus、NEI bias 一樣，是正常的 model selection（見 Q21）。dev 從頭到尾沒有拿來算梯度。只是報告裡的 dev 分數會略為樂觀，報告第 4 題 (7) 有寫這個限制。
+
+---
+
+### Q54. 「reranker 門檻」是什麼？為什麼用分位數，不直接寫一個分數？
+
+reranker 對每一題的候選句打分數，**第 1 名的分數**代表「最像證據的那一句有多像」。如果連第 1 名都很低，代表證據多半沒找到：
+
+- 如果這題其實是 S/R：證據沒找到，猜對標籤也是 0 分，改猜 NEI 沒有損失。
+- 如果這題其實是 NEI：改猜 NEI 就多拿 1 分。
+
+所以「第 1 名分數低於門檻就判 NEI」有機會提升 FEVER score。它和 NEI bias 的差別是：NEI bias 看的是**分類器**的想法，門檻看的是 **reranker** 的想法，兩個訊號互補。
+
+為什麼用分位數？reranker 的分數是 logit，範圍會因為模型（現成的或微調後的）而不同，直接寫「分數 < 0」不一定合理。用「dev 上分數最低的 10%」這種說法，不管分數範圍是多少都適用。挑好之後，換算成實際的分數值（`best_threshold`）套用到 test。門檻和 bias 的所有組合都在 dev 上試過（grid search），如果加門檻沒有比較好，程式會選「不使用」。
+
+---
+
+### Q55. 為什麼 train 的 NEI 題也要用 reranker 挑證據？
+
+分類器要學的是「這幾句**夠不夠**判斷 claim」。測試時，NEI 題的證據是 reranker 從 30 句裡挑出最像的 5 句：主題完全對、看起來很相關，但其實資訊不夠。v1 訓練時，NEI 題的證據是向量隨便取的前 5 句，比測試時「好認」很多。模型在簡單的題目上學會 NEI，遇到測試時那種很像的句子，就容易誤判成 SUPPORTS / REFUTES。
+
+v2 讓 train 的 NEI 題也經過 reranker（從前 10 句挑 5 句，省時間），訓練和測試的難度就一致了。S/R 題不用：它們會補進標準證據。
+
+---
+
+### Q56. v2 要跑多久？為什麼建議用 Kaggle 的 Save & Run All？
+
+T4 估計 1.5～2 小時（細項在 [index.md](index.md) 第八節）。Colab 免費版閒置或跑太久容易斷線，而且分頁要一直開著。Kaggle 的 **Save Version → Save & Run All (Commit)** 會在背景用一台新的機器從頭跑到尾：
+
+- 關掉瀏覽器、電腦睡眠都不影響。
+- 單次最多 12 小時，v2 綽綽有餘；每週 GPU 有 30 小時，可以跑好幾次。
+- 跑完後到該版本的 **Output** 下載 `submission.csv` 和 `report_filled.md`，notebook 的執行輸出也會保留下來，交作業時直接下載那個版本的 `.ipynb`。
+
+想先確認不會出錯，可以照 Q40 試跑（`TRAIN_SAMPLES = 2000`、`DEV_SAMPLES = 300`、`TEST_SAMPLES = 300`、`EPOCHS = 1`），v2 另外可以把 `RERANK_TRAIN_CLAIMS` 改成 500。
+
+---
+
+### Q57. 如果 v2 沒有比 v1 好怎麼辦？最後 2 個 submission 怎麼選？COOL 交哪一份？
+
+- **先看 dev**：v2 第 7 節的 v1 / v2 對照表，比較兩版的 dev FEVER score。dev 有 3,000 題，比 public leaderboard 的部分測試資料穩定。
+- **Kaggle 最終 2 個**：建議選「public 最高的那份」+「dev FEVER 最高的那份」；如果是同一份，第 2 個選另一版當保險。private 分數用的是另一部分測試資料，public 最高不一定 private 也最高。
+- **COOL 只交 1 份 notebook**：交分數比較好的那一版，改名成 `NLP_HW3_NTOU_11457088.ipynb`。Report 裡的 public score 要填**這一版**的分數。如果交 v2，第 4 題已經有 v1 / v2 對照，內容比較完整。
+
+---
+
+### Q58. 還想再往上衝，有什麼方法？
+
+依「預期效果 ÷ 花的 GPU 時間」排序，都要遵守作業規範：
+
+1. **train + dev 合起來訓練最終分類器**：先用 v2 在 dev 上挑好參數（bias、門檻、epoch 數），再把 dev 也加進訓練資料重訓一次，test 用這個模型。資料多 12%，通常能再進步一點，但就沒有 dev 可以檢查了。
+2. **多個 seed 的 ensemble**：同樣設定換 2～3 個 `SEED` 各訓練一次，把 logit 平均。每個模型仍然 < 1B（規範是逐一計算）。時間 × 2～3。
+3. **換分類器**：`hfl/chinese-macbert-large`（326M）和 roberta-large 差不多大，可以都試，挑 dev 比較好的，或兩個一起 ensemble。
+4. **讓證據來自更多頁**：`DOCUMENT_TOP_K = 8`，報告 Recall@8。文件 Recall 會上升，但候選句變多、比較雜，要靠 reranker 挑得夠準。
+5. **多句證據**：需要 2 句一起才能判斷的題目，reranker 一句一句看很吃虧。可以讓 reranker 看「第 1 名 + 候選句」的組合，但程式會複雜很多。
+
+先等 v2 的漏斗表出來，看哪一段掉最多題，再決定要做哪一個。
