@@ -7,6 +7,7 @@
 | 檔案 | 何時看 | 內容 |
 | --- | --- | --- |
 | [st_code.ipynb](st_code.ipynb) | 要執行、產生 CSV、寫報告 | 作業程式與最下方 Report；題目文字保留原樣 |
+| [st_code_kaggle.ipynb](st_code_kaggle.ipynb) | 直接匯入 Kaggle Notebook | Kaggle 專用路徑與操作說明；保留相同的作業流程與 Report |
 | [程式逐段解析.md](程式逐段解析.md) | 看不懂某個 cell | 按執行順序解釋每個程式區塊、資料型態、向量形狀和評估 |
 | [st_question.md](st_question.md) | 卡在名詞、Python 語法或 Colab 錯誤 | 模擬這次可能會問的問題，以小例子說明 |
 | [作業規範.md](作業規範.md) | 確認課程限制 | 配分、繳交格式與助教補充 |
@@ -43,7 +44,7 @@ claim ──► BERT claim 向量 ──► 找最相似的 5 頁 ──► 在�
 7. 參照 notebook 第 5 節印出的 Q1～Q4 數值，把實測結果填入最下方 Report 既有的 `Answer:`；不要修改題目或 Markdown 格式。把 `submission.csv` 依競賽頁面的指示提交，取得 public score 後再填寫；private score 要等公布後才能填。
 8. 檢查 Report 裡的 AI 使用聲明是否與自己的實際使用一致。下載保留執行結果的 notebook，依規範改名為 `NLP_HW3_<學校>_<學號>.ipynb`，再依規範壓成同名 ZIP 上傳；學校和學號請自行核對，不要直接照抄範例。
 
-Kaggle 執行時，競賽資料要先加入 Input；程式會搜尋 Input。首次抓模型需 Internet，離線提交需要先將完整 `bert-base-chinese` 模型加入 Input 並設定 `ALLOW_MODEL_DOWNLOAD = False`。Kaggle 的 `/kaggle/working` 輸出不會自動變成下次執行的 Input。
+Kaggle 執行時，可在新 Notebook 選 `File → Import Notebook`，匯入 `st_code_kaggle.ipynb`，並先將競賽資料加入 Input；程式會搜尋 Input。首次抓模型需 Internet，離線執行需要先將完整 `bert-base-chinese` 模型加入 Input 並設定 `ALLOW_MODEL_DOWNLOAD = False`。Kaggle 的 `/kaggle/working` 輸出不會自動變成下次執行的 Input。
 
 ## 最值得手打的 4 小段
 
