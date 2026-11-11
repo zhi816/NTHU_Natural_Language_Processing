@@ -1,78 +1,169 @@
-# Assignment 3：執行與手打核心指南
+# Assignment 3 入口：執行、讀懂、手打、繳交
 
-這份是你的入口。先用 Colab 跑出真正的數據，再讀最值得親手打的程式；不用把整份 notebook 重新抄一遍。
+這份是起點：先用這裡的步驟跑出真正的數字，再照「手打清單」把核心程式弄懂。整份 notebook 不用全部重抄。
 
-## 要打開哪個檔案？
+---
 
-| 檔案 | 何時看 | 內容 |
-| --- | --- | --- |
-| [st_code.ipynb](st_code.ipynb) | 要執行、產生 CSV、寫報告 | 作業程式與最下方 Report；題目文字保留原樣 |
-| [st_code_kaggle.ipynb](st_code_kaggle.ipynb) | 直接匯入 Kaggle Notebook | Kaggle 專用路徑與操作說明；保留相同的作業流程與 Report |
-| [程式逐段解析.md](程式逐段解析.md) | 看不懂某個 cell | 按執行順序解釋每個程式區塊、資料型態、向量形狀和評估 |
-| [st_question.md](st_question.md) | 卡在名詞、Python 語法或 Colab 錯誤 | 模擬這次可能會問的問題，以小例子說明 |
-| [作業規範.md](作業規範.md) | 確認課程限制 | 配分、繳交格式與助教補充 |
+## 一、檔案地圖
 
-我選擇用一份 Markdown 做完整程式解析，而不是複製另一份 notebook：程式只維護 `st_code.ipynb`，文字可以依函式名稱快速查找，也比較不會因為兩份程式改得不同而混淆。需要動手練習時，可以在 Colab 另外新增暫時的 cell，參照本文手打；不要讓練習 cell 改掉正式使用的變數。
+| 檔案 | 用途 | 要交嗎 |
+| :--- | :--- | :---: |
+| [st_minecode.ipynb](st_minecode.ipynb) | **正式作業**：程式 + 最下面的 Report。Kaggle、Colab 共用同一份 | ✅（改名後交） |
+| [st_minecode_study.ipynb](st_minecode_study.ipynb) | **練功本**：10 個小積木，CPU 幾秒跑完，有 ✍️ 手打練習和自動對答案 | ❌ 自己看 |
+| [st_question.md](st_question.md) | 43 個「我大概會問的問題」，包含 Claude vs Gemini 建議的評估 | ❌ 自己看 |
+| [作業規範.md](作業規範.md)、[作業補充.md](作業補充.md) | 配分、規定、助教答疑 | ❌ |
+| `st_code.ipynb`、`st_code_kaggle.ipynb`、`程式逐段解析.md`、`issue.md` | 之前 GPT 做的版本（含 Kaggle 版）與審查，留著參考，**不用再看**。舊的 index / st_question 在 git 紀錄 `ac424a8` 裡 | ❌ |
+| `sample_code.ipynb` | 助教原始 sample code | ❌ |
 
-## 先抓住整體流程
+### 為什麼「程式分析」做成練功本 notebook，而不是一份 .md？
+
+我原本也在想要寫一份逐行解析的 .md，最後選了 notebook，原因有三個：
+
+1. **我是邊跑邊懂的人**。HW2 的 `my_main.ipynb` 就是在程式旁邊一段一段寫註解、改一改再跑。.md 只能看，不能跑。
+2. **正式 notebook 不適合拿來實驗**。它要讀 1 GB 維基、下載 3 個模型、跑 40～60 分鐘 GPU；想看「mean pooling 到底在算什麼」不可能每次都跑一遍。練功本只用幾行假資料，CPU 幾秒鐘就跑完。
+3. **手打要有回饋**。練功本的練習格子會自動對答案（⏳ / ✅ / ❌），打錯馬上知道；參考答案用 `<details>` 收起來，先自己寫再點開。
+
+分工是：**正式 notebook** 每一節前面的 markdown 講「這格在做什麼、為什麼」；**練功本**講「這幾行到底怎麼運作」；**st_question.md** 回答「為什麼這樣選、遇到錯誤怎麼辦」；**這份 index.md** 是地圖。
+
+### 為什麼 Kaggle 和 Colab 只有一份 notebook？
+
+兩個平台只差「資料放哪、輸出存哪」，大約 15 行，第 1 節第二格會自動判斷環境。分成兩份的話，改 bug 要改兩次、報告數字可能對不起來，而且 NTU COOL 本來就只收一份 `.ipynb`。
+
+---
+
+## 二、30 秒看懂整個流程
 
 ```text
-train 的證據頁名 ──► 候選 Wikipedia 頁面 ──► BERT 頁面向量
-                                                        │
-claim ──► BERT claim 向量 ──► 找最相似的 5 頁 ──► 在這些頁面找最相似的 5 句
-                                                           │
-                           claim + 5 句 ──► 訓練好的 BERT 分類器 ──► 三個標籤
-                                                           │
-                                        test 的預測 ──► submission.csv
+                         ┌─ 第 1 次讀維基：只讀頁名 → 「標題 → 頁面」索引（一百多萬頁）
+claim ─► ① 文件檢索 ─────┤  claim 的每個子字串去查表 → 標題命中頁
+                         └─ 第 2 次讀維基：只載入候選池（train 標註頁 + 標題命中頁）
+                            bge-m3 向量 cosine + 標題命中加分（bonus 在 dev 上挑）→ 前 5 頁
+      ─► ② 證據檢索 ─────  5 頁的「每一句」（前面加頁名）
+                            bge-m3 向量初篩 20 句 → bge-reranker 重排 → 前 5 句（保留原始句號）
+      ─► ③ 分類 ──────────  [CLS] claim [SEP] 【頁名】句子 ×5 [SEP] → chinese-roberta-wwm-ext
+                            訓練：S/R 補進標準證據、NEI 用檢索結果；預測：NEI logit 加 bias（在 dev 上挑）
+      ─► submission.csv ＋ 第 7 節自動印出填好數字的 Report
 ```
 
-- 文件庫只包含「訓練資料曾標註過」的頁面，因此它不是完整 Wikipedia 檢索；這個限制會影響結果。
-- 第二階段會考慮取回頁面的非空句子，不限制只能選曾被訓練資料標註的句子。
-- `test.jsonl` 只使用 `id` 和 `claim`。測試 claim 會正常進行檢索，但不使用測試標準答案。
-- 數字要等真實執行或 Kaggle 評分後才能填；`zhi816` 已填在 Report，分數不會預先猜測。
+| 模型 | 用途 | 參數量 |
+| :--- | :--- | ---: |
+| `BAAI/bge-m3` | 頁面、句子、claim 的向量 | 約 568M |
+| `BAAI/bge-reranker-v2-m3` | 句子重排（cross-encoder） | 約 568M |
+| `hfl/chinese-roberta-wwm-ext` | 三分類 | 約 102M |
 
-## Colab 一次跑通
+每個都 < 1B，程式裡的 `count_parameters` 會再檢查一次。全部在本地 GPU 跑，沒有呼叫任何外部 API；訓練只用 CFEVER。
 
-你下載完成的檔案是 `nthu-nlp-2026-assignment-3-fact-verification.zip`，約 223 MiB。ZIP 內包含四個需要的 JSONL 及官方 `sample_submission.csv`；其中 `wiki_pages.jsonl` 解壓後約 1 GB。不需要先在自己的電腦解壓或跑模型。
+---
 
-1. 在 Google Drive 的「我的雲端硬碟」建立 `nlp-hw3` 資料夾，將上面的競賽 ZIP 上傳到這個資料夾。先等待上傳完成。預設該資料夾內只能有一份 `.zip`；若有多份，在 notebook 的 `COLAB_ZIP_PATH` 指定這次資料 ZIP 的完整路徑。
-2. 到 Colab 開啟／上傳本資料夾的 `st_code.ipynb`。選單中選「執行階段 → 變更執行階段類型 → GPU」，儲存後確認第一個程式 cell 顯示 `cuda`。若顯示 `cpu`，先檢查 GPU 是否可用；CPU 也能跑，但可能非常慢。
-3. 由上往下執行。Drive 掛載時依畫面授權。程式會從 `MyDrive/nlp-hw3/` 的 ZIP 把四個 JSONL 解壓至 Colab 的 `/content/cfever_data/`，並將結果存到 Drive 的 `MyDrive/nlp-hw3/output/`。
-4. 第一次會下載中文 BERT 權重，模型檔本身約 412 MB；微調後模型也會存到 Drive。請預留空間和時間，並留意 Colab 可能斷線。句子編碼會印出進度；每次換新的 Colab 執行環境，暫存的資料通常需重新解壓。
-5. 預設 `TRAIN_SAMPLES = 3000`、`DEV_SAMPLES = 300`、`EPOCHS = 1`。可以先降低 `TRAIN_SAMPLES` / `DEV_SAMPLES` 確認流程，再改回去從上方重跑；不要把小樣本結果說成完整資料結果。實際耗時與 GPU、候選句數和連線有關，沒有保證的固定分鐘數。
-6. 完整執行後，到 Drive 的 `nlp-hw3/output/` 找 `metrics.json`、`submission.csv`、`finetuned_bert/` 與下載的模型資料夾。`metrics.json` 是你那次執行的 dev 結果；`submission.csv` 是 test 預測，不是分數。
-7. 參照 notebook 第 5 節印出的 Q1～Q4 數值，把實測結果填入最下方 Report 既有的 `Answer:`；不要修改題目或 Markdown 格式。把 `submission.csv` 依競賽頁面的指示提交，取得 public score 後再填寫；private score 要等公布後才能填。
-8. 檢查 Report 裡的 AI 使用聲明是否與自己的實際使用一致。下載保留執行結果的 notebook，依規範改名為 `NLP_HW3_<學校>_<學號>.ipynb`，再依規範壓成同名 ZIP 上傳；學校和學號請自行核對，不要直接照抄範例。
+## 三、跑一次
 
-Kaggle 執行時，可在新 Notebook 選 `File → Import Notebook`，匯入 `st_code_kaggle.ipynb`，並先將競賽資料加入 Input；程式會搜尋 Input。首次抓模型需 Internet，離線執行需要先將完整 `bert-base-chinese` 模型加入 Input 並設定 `ALLOW_MODEL_DOWNLOAD = False`。Kaggle 的 `/kaggle/working` 輸出不會自動變成下次執行的 Input。
+### 方法 A：Kaggle（推薦，最後也要在這裡交）
 
-## 最值得手打的 4 小段
+1. 到[競賽頁面](https://www.kaggle.com/competitions/nthu-nlp-2026-assignment-3-fact-verification) → **Code → New Notebook**，選 **File → Import Notebook** 上傳 `st_minecode.ipynb`。
+2. 右側 **Add Input** 加入這個競賽的資料。
+3. 右側 **Settings**：**Accelerator 選 GPU**（T4 或 P100），**Internet 打開**（第一次要下載 3 個模型，約 5 GB）。
+4. **Run All**。第 1 節會印出「環境：Kaggle」和 4 個資料檔的路徑，確認沒有報錯就可以先去做別的事。
+5. 跑完後，右側 **Output** 會有 `submission.csv`、`report_filled.md`、`metrics.json`。用 `submission.csv` 提交（或 Save Version 之後從 Output 提交）。
+6. 每次提交都在 notebook 或筆記裡記下設定，截止前要自己**選最多 2 個 submission**。
 
-| 順序 | 程式位置 | 為什麼親手打 | 打完應能回答 |
-| --- | --- | --- | --- |
-| 1 | `encode_texts` 的 `mask`、加總、平均與 `F.normalize` | 文字如何變成能比較的固定長度向量 | 為何 padding 不應參加平均？正規化後內積為何可比 cosine？ |
-| 2 | `retrieve_documents` 的矩陣乘法與 `topk` | 理解第一階段真的如何排序 | 一列是什麼？索引如何找回頁名？ |
-| 3 | `retrieve_evidence` 的候選頁面索引與 `topk` | 理解檢索的第二道篩選 | 為何不能從沒有取回的頁面選句？`local_index` 和 `index` 差在哪？ |
-| 4 | Training cell 的 `zero_grad → forward → backward → clip → step` | 理解模型何時學習 | 哪一行算 loss？哪一行真的更新參數？ |
+> 如果競賽規定提交時不能開 Internet：先在有網路的情況下跑一次，把 3 個模型存成 Kaggle Dataset 再加入 Input。資料夾名稱要包含 `bge-m3`、`bge-reranker-v2-m3`、`chinese-roberta-wwm-ext`，`resolve_model` 會自動找到。
 
-有時間再手打 `gold_groups` 和 `evidence_group_hit`：這兩個函式決定「一組證據必須完整命中」及「空集合不能算命中」。讀程式時可以先用 [程式逐段解析](程式逐段解析.md) 對照，再用 [問答筆記](st_question.md) 補觀念。
+### 方法 B：Colab
 
-## 報告數字在哪裡？
+1. 在 Google Drive「我的雲端硬碟」建立 `nlp-hw3` 資料夾，把競賽 ZIP 放進去（資料夾裡只能有這一個 `.zip`）。已經解壓的 4 個 `.jsonl` 直接放進去也可以。
+2. Colab 開啟 `st_minecode.ipynb`。notebook 已經預設 GPU，還是可以到 **執行階段 → 變更執行階段類型** 確認是 T4 GPU。
+3. **執行階段 → 全部執行**，跳出 Drive 授權時同意。
+4. 輸出會存在 Drive 的 `nlp-hw3/output/`：`submission.csv`、`report_filled.md`、`metrics.json`、`retrieval_cache.json`、`classifier/`。
+5. 把 `submission.csv` 下載下來，到 Kaggle 競賽頁 **Submit Prediction** 上傳。
+6. **斷線救援**：如果是在訓練分類器時斷線，重跑第 1 節（到「讀取資料」為止），把「Colab 斷線救援」那格的 `LOAD_RETRIEVAL_CACHE` 改成 `True`，再從那格往下跑（見 [st_question Q38](st_question.md)）。
 
-| Report 欄位 | 執行後從哪裡拿 |
-| --- | --- |
-| Q1 文件 Recall@N | 第 5 節 `document_recall`、`document_hits`、`verifiable_dev_samples` 與 `document_top_k` |
-| Q2 證據 Recall@N | `evidence_recall`、`evidence_hits`、`verifiable_dev_samples` 與 `evidence_top_k` |
-| Q3 Accuracy | `classification_accuracy` 和 `dev_samples` |
-| Q4 額外分析 | `document_candidate_coverage` 與 `local_strict_score`；解釋限制，切勿把尚未做的比較寫成實驗結果 |
-| Public / private 分數 | Kaggle 該次 submission 的排行榜，不是 dev 分數 |
+### 大概要多久（T4 GPU，估計值）
 
-例如 `0.2500` 才是 25%；它是示意，不是本作業實測成績。若你修改 `DOCUMENT_TOP_K` 或 `EVIDENCE_TOP_K`，報告文字與 `@N` 也要跟著改。前五句是此 notebook 計算本地 strict score 的限制；最終仍以競賽評分器為準。
+| 步驟 | 大約時間 | 用什麼 |
+| :--- | :--- | :--- |
+| 下載 3 個模型 | 2～5 分鐘 | 網路 |
+| 讀維基兩次 + 標題比對 | 3～5 分鐘 | CPU |
+| bge-m3 編碼頁面、claim、句子 | 15～20 分鐘 | GPU |
+| reranker 重排 dev + test | 5～10 分鐘 | GPU |
+| 訓練分類器 2 epochs + 預測 | 10～15 分鐘 | GPU |
+| **合計** | **約 40～60 分鐘** | |
 
-## 繳交前最後確認
+這些是估計值，實際時間會因為 GPU 型號、候選池大小而變。想先確認流程不會出錯，可以照 [st_question Q40](st_question.md) 設定試跑。
 
-- [ ] Notebook 已完整執行並保留輸出，沒有把小樣本測試的數字誤當完整實驗。
-- [ ] Report 的使用者名稱、真實 dev 數字及 public / private score 已依可取得情況填寫；private 在公布後更新。
-- [ ] 保留 Report 題目和格式；AI 使用聲明及程式註解與實際情況一致。
-- [ ] 使用的資料、每個模型參數上限、禁止外部推理 API 等限制已依助教最新公告核對。資料集與 checkpoint 的公告曾有先後差異，未釐清前僅使用 CFEVER 資料。
-- [ ] 依要求選擇最終 Kaggle submissions，並將正確命名的 `.ipynb` 打包成 `.zip`；本資料夾的學習 Markdown 供自己閱讀，作業繳交格式以課程要求為準。
+---
+
+## 四、正式 notebook 目錄（每一格在做什麼）
+
+| 節 | 格子（標題 / 函式） | 做什麼 | 重要的變數 / 輸出 | 手打？ |
+| :--- | :--- | :--- | :--- | :---: |
+| 1 | 匯入套件、`set_seed` | 固定亂數種子、決定 GPU / CPU、程式開頭的 AI 使用註解 | `device`、`USE_FP16` | |
+| 1 | 自動判斷環境 | Kaggle / Colab / 本機各自的資料與輸出路徑；Colab 只解壓需要的 4 個檔 | `DATA_DIR`、`OUTPUT_DIR` | |
+| 1 | 參數 | 資料量、模型名稱、top-k、bonus / bias 的候選值、訓練超參數 | `TRAIN_SAMPLES`…`NEI_BIAS_GRID` | |
+| 1 | 讀取資料 | 讀 JSONL、標籤轉大寫、抽樣、`reset_index` | `train_df`、`dev_df`、`test_df` | |
+| 2 | 工具函式 | `gold_groups`、`title_key`、`doc_hit`、`evidence_hit`、`recall_at`、`md_table` | `report_values` | 🟡 |
+| 2 | 第 1 次讀維基 | 只讀頁名，建「標題 → 頁面」索引；跳過消歧義頁 | `title_index` | |
+| 2 | 標題比對 | `match_titles`：claim 子字串查表，長標題優先 | `*_title_matches` | ✍️ |
+| 2 | 第 2 次讀維基 | 只載入候選池的開頭文字和句子；`parse_lines` 保留原始句號 | `page_lead`、`page_sentences` | |
+| 2 | 載入 bge-m3 | `resolve_model`、`count_parameters`、`encode_texts`（排序分批、CLS pooling、L2 normalize） | `retriever` | ✍️ |
+| 2 | 編碼 | 頁面「頁名：開頭 200 字」與所有 claim 變成向量 | `page_embeddings`、`*_claim_emb` | |
+| 2 | 混合分數 | `page_candidates`（分批矩陣乘法 + topk）、`rank_pages`、在 dev 上挑 bonus、Recall@1/3/5/10 | `best_bonus`、`*_docs` | ✍️ |
+| 3 | 句子索引 + 編碼 | 前 5 頁的每一句加頁名後編碼；編完釋放 bge-m3 | `sentence_keys`、`page_sentence_rows` | |
+| 3 | 向量初篩 | `rank_sentences_dense`：local → 全域 index | `dev_dense_rows` | ✍️ |
+| 3 | reranker | `rerank`：dev / test 的 20 句做 cross-encoder 重排 | `dev_evidence`、`test_evidence` | |
+| 3 | Evidence Recall | 初篩 vs 重排 vs 上限；「文件已找對」時的證據命中率 | `evidence_table` | |
+| 3 | 準備分類輸入 | `build_context`；S/R 補進標準證據、打亂；存 `retrieval_cache.json` | `train_contexts` | ✍️ |
+| 3 | 斷線救援 | `LOAD_RETRIEVAL_CACHE = True` 時從快取恢復 | | |
+| 4 | Dataset / DataLoader | `ClaimDataset`（`only_second` 截斷）、dynamic padding | `train_loader` | |
+| 4 | 模型與 optimizer | 三分類頭、AdamW、warmup 排程、GradScaler；`predict_logits`、`fever_score` | `classifier` | 🟡 |
+| 4 | Training | 5 步驟 + fp16；每個 epoch 在 dev 上評估 | `epoch_table` | ✍️ |
+| 5 | Validation | NEI bias 表、Accuracy、FEVER、混淆矩陣、三階段漏斗 | `best_bias`、`funnel_table` | |
+| 5 | 錯誤分析 | 各印 3 題「文件沒找到 / 句子沒找齊 / 標籤錯」 | | |
+| 6 | submission | 三欄、NEI 填 `[]`、順序檢查 | `submission.csv` | |
+| 7 | 報告自動填空 | 依數字產生分析句，把模板填好印出，並存 `report_filled.md`、`metrics.json` | `report_text` | |
+| — | Report | 原始題目格式不變；跑完後用第 7 節的輸出整段取代 | | |
+
+---
+
+## 五、手打清單（依重要性）
+
+先在練功本手打，打對了再回正式 notebook 對照同一段。每段打完都應該能回答右邊的問題。
+
+| 順序 | 練功本 | 正式 notebook | 打完應該能回答 |
+| :---: | :--- | :--- | :--- |
+| 1 | §2 `match_titles` | 第 2 節「標題比對」 | 為什麼是「子字串去查表」而不是「標題去 claim 裡找」？`.get(key, [])` 為什麼不會讓 dict 變大？ |
+| 2 | §3 mean pooling + normalize | `encode_texts` | `unsqueeze(-1)` 之後形狀是什麼？為什麼 normalize 後內積 = cosine？bge-m3 為什麼取 [CLS]？ |
+| 3 | §4 `rank_pages` | `page_candidates` / `rank_pages` | 相似度矩陣一列代表什麼？bonus = 0 和 bonus = 1 的差別？ |
+| 4 | §5 `top_sentences` | `rank_sentences_dense` | `local` 和 `rows[local]` 差在哪？寫錯會不會報錯？ |
+| 5 | §7 `inject_gold` | 「準備分類器的輸入文字」 | 為什麼補標準證據不算作弊？為什麼要打亂？ |
+| 6 | §8 訓練 5 步驟 | Training | 哪一行真的更新參數？GradScaler 為什麼要先 `unscale_` 才 clip？ |
+| 7 | §9 `fever_score` | `fever_score`、NEI bias | 為什麼 Accuracy 對、FEVER 卻可能是 0？bias 往上調會發生什麼事？ |
+
+**看懂就好，不用手打**：環境判斷、Colab 解壓、`resolve_model`、`ClaimDataset`、submission、報告填空。這些都是固定寫法，和作業的核心觀念無關。
+
+---
+
+## 六、報告的數字從哪裡來？
+
+第 7 節會把下面全部自動填好，**整段貼到最下面的 Report 格子就好**（題目和格式沒有改）。
+
+| Report | 主要數字 | 附的表 |
+| :--- | :--- | :--- |
+| Q1 文件檢索 | Document Recall@5、命中題數 / 可驗證題數、選到的 bonus、候選涵蓋率 | 三種方法 × Recall@1/3/5/10 |
+| Q2 證據檢索 | Evidence Recall@5、文件已找對時的證據命中率 | 初篩 vs 上限 vs 重排 |
+| Q3 分類 | Accuracy（加 bias 與不加）、訓練筆數、補進標準證據的筆數 | 每個 epoch 的 loss / Acc / FEVER、混淆矩陣 |
+| Q4 加分題 | 三階段漏斗、bonus 消融、NEI bias 取捨、規定檢查、限制與未來方向 | 漏斗、bonus 表、bias 表 |
+| Q5 AI 聲明 | 已寫好，**請自己確認內容和實際使用情況一致** | |
+| public / private | 要自己去 Kaggle 看，第 7 節沒辦法幫你填 | |
+
+---
+
+## 七、繳交前檢查清單
+
+- [ ] 在 Kaggle（或 Colab）用**完整資料**跑完（`TRAIN_SAMPLES` / `DEV_SAMPLES` / `TEST_SAMPLES` 都是 `None`），每一格都有輸出。
+- [ ] 第 7 節印出的報告已經貼到 Report 格子，沒有殘留【待填】。
+- [ ] `Your Kaggle username:` 和 **leaderboard 上顯示的名字**一樣（目前填 `zhi816`，請到排行榜確認）。沒填或填錯扣 10 分。
+- [ ] public score 已填；private score 在 11/23 12:00 公布後補上。
+- [ ] Q5 的 AI 使用聲明和實際情況一致；程式最上方的 AI 註解還在。
+- [ ] Kaggle 截止（11/23 12:00）前，已經**自己選好最多 2 個 submission**。
+- [ ] 下載保留輸出的 notebook，改名成 **`NLP_HW3_NTOU_11457088.ipynb`**，壓成 **`NLP_HW3_NTOU_11457088.zip`**（學校、學號照 HW2，交之前再核對一次）。
+- [ ] 11/25（三）23:59 前上傳 NTU COOL。
