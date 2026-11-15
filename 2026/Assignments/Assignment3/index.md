@@ -2,7 +2,7 @@
 
 這份是起點：先用這裡的步驟跑出真正的數字，再照「手打清單」把核心程式弄懂。整份 notebook 不用全部重抄。
 
-> **v2 已經出來了**：v1 的 public score 是 0.776（第 64 名）。v2 改了證據檢索和分類器，怎麼跑、改了什麼、手打什麼，直接看最後的 **[八、v2](#八v2微調-reranker--roberta-large)**。
+> **v3 已經跑完，最後交 v3**：v1 是 0.776（第 64 名），v2 是 0.856（第 50 名），v3 是 **0.857**（dev FEVER 70.03%，比 v2 高 1.03 分）。v2 的漏斗顯示分數主要掉在「分類」，所以 v3 只把分類器換成 3 個模型的 ensemble。怎麼跑、改了什麼、跑完的分析和為什麼停在 v3，直接看最後的 **[九、v3](#九v3三個分類器的-ensemble)**；v2 的說明在 **[八、v2](#八v2微調-reranker--roberta-large)**。
 
 ---
 
@@ -10,11 +10,13 @@
 
 | 檔案 | 用途 | 要交嗎 |
 | :--- | :--- | :---: |
-| [st_minecode_v2.ipynb](st_minecode_v2.ipynb) | **v2 正式作業**：微調 reranker + RoBERTa-large，Report 多了 v1 / v2 對照 | ✅ 分數比 v1 高就交這份（改名後交） |
+| [st_minecode_v3.ipynb](st_minecode_v3.ipynb) | **v3 正式作業**：檢索沿用 v2，分類改成 3 個模型的 ensemble，Report 多了 v1 / v2 / v3 對照 | ✅ 交這份（要交的是跑完、Report 填好的那份，改名後交） |
+| [st_minecode_study_v3.ipynb](st_minecode_study_v3.ipynb) | **v3 練功本**：v3 新增的 ensemble（§1～§8），加上 v3 跑完後的分析：交叉驗證、多頁證據（§9～§10）。10 節、6 個手打題，CPU 幾秒跑完，約 25 分鐘 | ❌ 自己看 |
+| [st_minecode_v2.ipynb](st_minecode_v2.ipynb) | v2 正式作業：微調 reranker + RoBERTa-large，Report 有 v1 / v2 對照 | Kaggle 第 2 個 submission 選它當保險 |
 | [st_minecode_study_v2.ipynb](st_minecode_study_v2.ipynb) | **v2 練功本**：只講 v2 新增的 10 個觀念，CPU 幾秒跑完 | ❌ 自己看 |
 | [st_minecode.ipynb](st_minecode.ipynb) | v1 正式作業：程式 + 最下面的 Report。Kaggle、Colab 共用同一份 | v2 比較差才交這份 |
 | [st_minecode_study.ipynb](st_minecode_study.ipynb) | **練功本**：10 個小積木，CPU 幾秒跑完，有 ✍️ 手打練習和自動對答案 | ❌ 自己看 |
-| [st_question.md](st_question.md) | 43 個「我大概會問的問題」，包含 Claude vs Gemini 建議的評估 | ❌ 自己看 |
+| [st_question.md](st_question.md) | 「我大概會問的問題」：v1 是 Q1～Q43（含 Claude vs Gemini 建議的評估），v2 從 Q44、v3 從 Q59 開始 | ❌ 自己看 |
 | [作業規範.md](作業規範.md)、[作業補充.md](作業補充.md) | 配分、規定、助教答疑 | ❌ |
 | `st_code.ipynb`、`st_code_kaggle.ipynb`、`程式逐段解析.md`、`issue.md` | 之前 GPT 做的版本（含 Kaggle 版）與審查，留著參考，**不用再看**。舊的 index / st_question 在 git 紀錄 `ac424a8` 裡 | ❌ |
 | `sample_code.ipynb` | 助教原始 sample code | ❌ |
@@ -251,3 +253,111 @@ v2 在 T4 上大約要 **1.5～2 小時**，Colab 免費版容易中途斷線，
 - v2 的 `submission.csv` 交上 Kaggle 後，把 public score 填進 v2 Report 的 `Your public leaderboard score:`。
 - 截止（11/23 12:00）前選最終 2 個 submission：建議 **v2 + v1**（或 v2 + 另一個 v2 的設定），一份分數最高、一份做保險。
 - NTU COOL 只交一份：**分數比較好的那一版**改名成 `NLP_HW3_NTOU_11457088.ipynb`。交 v2 的話，Report 裡已經有 v1 / v2 對照表，第 4 題會比較完整。
+
+---
+
+## 九、v3：三個分類器的 ensemble
+
+v2 的 public score 是 **0.856**（第 50 名），dev FEVER score 69.00%。v2 的三階段漏斗（dev 3,000 題）把分數掉在哪裡算得很清楚：
+
+| 掉在哪一步 | 題數 |
+| :--- | ---: |
+| ① 文件檢索：前 5 頁沒找齊證據頁 | 223 |
+| ② 證據檢索：頁面對了，前 5 句沒找齊 | 60 |
+| ③ **分類：證據已經找齊，標籤卻判錯** | **417** |
+| NOT ENOUGH INFO 判錯 | 230 |
+
+分類掉的比前兩步加起來還多，所以 v3 **檢索完全沿用 v2，只改分類**：
+
+| | v2 | v3 | 為什麼 |
+| :--- | :--- | :--- | :--- |
+| 分類器 | `chinese-roberta-wwm-ext-large` | 再加 `chinese-macbert-large`、`xlm-roberta-large`，三類機率平均 | 預訓練方式、斷詞方式不同，錯的題目不完全一樣 |
+| 模型組合 | — | 7 種組合（單一、兩兩、全部）都在 dev 上比，選 FEVER 最高的 | 某個模型拖後腿時會自動不用它 |
+| NEI bias 範圍 | -1.5～1.5 | -3.0～1.0 | v2 選到邊界的 -1.5，更小的值可能更好 |
+| 門檻分位數 | 每 5% 一格 | 10% 附近每 2.5% 一格 | v2 選到 10%，在附近找細一點 |
+| 斷線 | 分類器要整個重訓 | 每個模型訓練完就存 `pred_*.json`，重跑時自動跳過 | 3 個模型多花 1 個多小時 |
+
+**沒改的**：文件檢索、證據檢索、輸入格式。輸入格式我用 v2 的檢索結果檢查過：dev 上證據有找齊的 1,717 題裡，1,514 題（88%）的標準證據排在 reranker 的第 1 句，和訓練時「標準證據放最前面」一致，所以不用改。
+
+**作業規範**：5 個模型每個都 < 1B（568M / 568M / 326M / 326M / 560M），1B 是逐一計算（11/06 答覆）；3 個分類器都只做過語言模型預訓練，理由和 v2 不用 Erlangshen-NLI 一樣（見 [st_question Q61](st_question.md)）；沒有外部 API；只用 CFEVER。
+
+### 怎麼跑
+
+**方法 A：Colab 沿用 v2 的檢索結果（推薦，L4 約 1.5～2 小時）**
+
+1. 確認 Drive 的 `nlp-hw3/output_v2/retrieval_cache.json` 還在（v2 跑完就有）。
+2. Colab 開啟 `st_minecode_v3.ipynb`，執行階段類型選 GPU（v2 用的是 L4）。
+3. 依序執行第 1 節的三格（套件、環境、參數）、「讀取資料」那格、第 2 節第一格（`gold_groups` 那格）。
+4. 捲到第 3 節最後「沿用 v2 的檢索結果」那格，把 `LOAD_RETRIEVAL_CACHE` 改成 `True`，按 Ctrl+Enter，確認印出「已載入檢索快取：…output_v2/retrieval_cache.json」。
+5. 點下一格（第 4 節的標題），**執行階段 → 執行之後的儲存格**（Ctrl+F10）。
+6. 輸出在 Drive 的 `nlp-hw3/output_v3/`：`submission.csv`、`report_filled.md`、`metrics.json`，還有 3 個 `pred_*.json`。
+
+**方法 B：完整重跑**：Run all。Colab L4 約 2.5 小時；Kaggle T4 約 4～5 小時（Save & Run All 背景執行）。檢索會重跑一次，數字可能和 v2 有一點點差異（reranker 的微調在 GPU 上不是完全可重現）。
+
+> Kaggle 的 Save & Run All 只能整份跑，沒辦法跳過檢索，所以 Kaggle 就用方法 B。想在 Kaggle 用快取，要開互動模式照方法 A 的步驟手動跑，並把 v2 的 `output_v2` 資料夾上傳成 Dataset 再 Add Input。
+
+| 步驟（Colab L4，估計值） | 方法 A | 方法 B |
+| :--- | :--- | :--- |
+| 檢索（同 v2） | 不用跑，讀快取 | 約 40 分鐘 |
+| roberta-large 2 epochs + 預測（v2 實測一個 epoch 15 分鐘） | 約 35 分鐘 | 約 35 分鐘 |
+| macbert-large（同大小） | 約 35 分鐘 | 約 35 分鐘 |
+| xlm-roberta-large | 約 35 分鐘 | 約 35 分鐘 |
+| 模型組合比較 + 報告 | 1～2 分鐘 | 1～2 分鐘 |
+| **合計** | **約 1.5～2 小時** | **約 2.5 小時** |
+
+**出問題時**：
+
+- **中途斷線**：訓練完的模型已經存在 `output_v3/pred_*.json`。照方法 A 的步驟 3～5 重來，已經訓練好的模型會印出「讀取已經訓練好的 …」直接讀檔，只會重訓還沒完成的那個。
+- **`CUDA out of memory`**：`BATCH_SIZE = 4`、`GRAD_ACCUM_STEPS = 4`（等效 batch 不變），還不夠就 `GRADIENT_CHECKPOINTING = True`。
+- **印出「⚠️ … 沒有學起來，不放進 ensemble」**：最可能是 xlm-roberta-large。ensemble 會自動只用其他模型，不處理也能交；想救的話把它的 `lr` 改成 `5e-6`，從第 4 節重跑（設定變了會自動重訓，其他模型直接讀檔）。
+- **時間不夠**：把 `CLASSIFIER_MODELS` 刪到剩 2 個。
+
+### v3 改了哪些格子
+
+| 節 | 格子 | 改了什麼 | 手打？ |
+| :---: | :--- | :--- | :---: |
+| 1 | 參數 | `CLASSIFIER_MODELS`（每個模型的 lr、要不要凍結詞向量）、`REUSE_SAVED_PREDICTIONS`、放寬 `NEI_BIAS_GRID` / `SCORE_QUANTILES`、`PREVIOUS_RESULTS`（v1 / v2 的實際數字） | |
+| 3 | 沿用 v2 檢索結果 | `find_retrieval_cache`：先找 `output_v3/`，再找 `output_v2/` 或 Kaggle Input | |
+| 4 | `ClaimDataset` / `make_loaders` | tokenizer 變成參數，每個模型重建 DataLoader；印出 3 個 tokenizer 切出來的長度 | |
+| 4 | `train_classifier` | v2 的訓練迴圈包成函式；`freeze_embeddings`；回傳 logits 後刪掉模型 | 🟡 |
+| 4 | 依序訓練 | `pred_*.json` 存檔 + 輸入指紋；沒學起來的模型自動排除 | |
+| 5 | `ensemble_scores` | softmax → 平均 → 取 log | ✍️ |
+| 5 | 模型組合 | `combinations` 列出所有組合，各自挑 bias / 門檻，選 dev FEVER 最高的 | ✍️ |
+| 5 | 漏斗 | 多印「標準證據排在第 1 句」的比例 | |
+| 7 | 報告 | v1 / v2 / v3 對照表、每個模型的表、模型組合表 | |
+
+### v3 手打清單
+
+v3 的新程式在正式 notebook 裡要先訓練完 3 個模型（1.5～2 小時）才跑得到，沒辦法改一行就跑一下，所以還是做了一本小的練功本 [st_minecode_study_v3.ipynb](st_minecode_study_v3.ipynb)（用假的 logits，CPU 幾秒跑完，約 25 分鐘）。先在練功本打，再回正式 notebook 對照：
+
+| 順序 | 練功本 | 正式 notebook | 打完應該能回答 |
+| :---: | :--- | :--- | :--- |
+| 1 | §3 `ensemble_scores` | 第 5 節 `ensemble_scores` | 為什麼平均「機率」而不是平均 logits（§2）？最後為什麼要取 log？`clamp_min(1e-9)` 在防什麼？ |
+| 2 | §4 `pick_best_combo` | 第 5 節的 `combinations` 迴圈 | 3 個模型有幾種組合？同分時為什麼選模型多的？ |
+| 3 | §5 `same_setting` | 第 4 節 `input_fingerprint` / `same_setting` | 什麼情況會沿用 `pred_*.json`、什麼情況會重訓？為什麼用 `.get`？ |
+| 4 | §8 `standard_error` | （決定要不要提交 v3） | v2 0.856 vs v3 0.857 算不算真的進步？為什麼以 dev 為準？ |
+| 5 | §9 `kfold_indices` | （v3 跑完後的分析，正式 notebook 沒有） | 在 dev 上調參、又在 dev 上報分數，會高估多少？為什麼 v3 沒改用 stacker？ |
+| 6 | §10 `easiest_group` | （v3 跑完後的分析，正式 notebook 沒有） | 為什麼要 2 頁以上才能證明的題目特別難找齊？第二輪檢索在補什麼？ |
+
+看懂就好的：§1 ensemble 為什麼有用（含 v3 實測：3 個模型 73.5% 的題目意見一樣）、§6 學不起來的模型自動排除、§7 為什麼只凍結 xlm-roberta 的詞向量（`trainable` 為什麼同時傳給 optimizer 和梯度裁剪）。
+
+### v3 跑完的結果
+
+| | v2 | v3 |
+| :--- | :---: | :---: |
+| dev Evidence Recall@5 | 85.85% | 85.50%（重跑 reranker 微調，有一點差異） |
+| dev Accuracy | 73.30% | 74.77% |
+| dev FEVER score | 69.00% | **70.03%** |
+| Kaggle public | 0.856 | **0.857** |
+
+- dev 多對 31 題，public 只差約 1 題（public 的誤差約 ±22 題，見練功本 §8），所以以 dev 為準：**v3 比 v2 好**。
+- 分類這一步少錯 55 題（417 → 362），但證據沒找齊的 290 題沒有改善，其中 179 題要 2 頁以上才能證明（練功本 §10）。
+- 想再往上的評估：NEI 判斷改用 stacker，交叉驗證後只多 0.23 分，是雜訊（練功本 §9）。第二輪檢索可以讓頁面涵蓋率從 88.85% 升到 91.90%～93.10%，但估計 public 只到 0.87～0.88，還要多跑 3～4 小時 GPU，到 0.90 機會不大，所以**停在 v3**。
+
+### 提交與繳交
+
+- v3 的 dev FEVER 70.03% 比 v2 的 69.00% 高，已經提交（`submission_v3.csv`，public 0.857）。
+- Kaggle public 只用約 17% 的 test（約 1,000 題），差 1 分以內都可能是運氣；v3 有沒有比 v2 好，以 dev（3,000 題）為準。
+- 截止（11/23 12:00）前選最終 2 個 submission：**v3 + v2**，一份分數最高、一份做保險。GPT 版的 0.551 不要選。
+- NTU COOL 只交一份：v3。Colab 跑完下載的 notebook 已經把 Report 填好、public 填了 0.85700，存成 `Downloads/NLP_HW3_NTOU_11457088.ipynb`。
+- 11/23 private 公布後，把 `Your private leaderboard score:` 填上，再壓成 `NLP_HW3_NTOU_11457088.zip`（zip 裡只放這個 ipynb）。學校代碼和學號交之前再核對一次。
